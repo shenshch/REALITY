@@ -14,16 +14,17 @@ import (
 
 var GlobalPostHandshakeRecordsLock sync.Mutex
 
-var GlobalPostHandshakeRecordsLens map[*Config]map[string][]int
+var GlobalPostHandshakeRecordsLens map[string]map[string][]int
 
 func DetectPostHandshakeRecordsLens(config *Config) map[string][]int {
 	GlobalPostHandshakeRecordsLock.Lock()
 	defer GlobalPostHandshakeRecordsLock.Unlock()
 	if GlobalPostHandshakeRecordsLens == nil {
-		GlobalPostHandshakeRecordsLens = make(map[*Config]map[string][]int)
+		GlobalPostHandshakeRecordsLens = make(map[string]map[string][]int)
 	}
-	if GlobalPostHandshakeRecordsLens[config] == nil {
-		GlobalPostHandshakeRecordsLens[config] = make(map[string][]int)
+	// TODO: Handle same `target` but different `serverNames`.
+	if GlobalPostHandshakeRecordsLens[config.Dest] == nil {
+		GlobalPostHandshakeRecordsLens[config.Dest] = make(map[string][]int)
 		for sni := range config.ServerNames {
 			target, err := net.Dial("tcp", config.Dest)
 			if err != nil {
@@ -36,7 +37,7 @@ func DetectPostHandshakeRecordsLens(config *Config) map[string][]int {
 			}
 			detectConn := &DetectConn{
 				Conn:                     target,
-				PostHandshakeRecordsLens: GlobalPostHandshakeRecordsLens[config],
+				PostHandshakeRecordsLens: GlobalPostHandshakeRecordsLens[config.Dest],
 				Sni:                      sni,
 			}
 			uConn := utls.UClient(detectConn, &utls.Config{
@@ -48,7 +49,7 @@ func DetectPostHandshakeRecordsLens(config *Config) map[string][]int {
 			io.Copy(io.Discard, uConn)
 		}
 	}
-	return GlobalPostHandshakeRecordsLens[config]
+	return GlobalPostHandshakeRecordsLens[config.Dest]
 }
 
 type DetectConn struct {
